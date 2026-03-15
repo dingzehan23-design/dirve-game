@@ -126,8 +126,6 @@
 
     <!-- Three.js 核心库 -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-    <!-- 轨道控制器（可选，用于调试） -->
-    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
     <!-- 微信小程序通信 -->
     <script src="https://res.wx.qq.com/open/js/jweixin-1.6.0.js"></script>
 
@@ -149,12 +147,10 @@
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-        // ===================== 光照系统（3D真实光影） =====================
-        // 环境光
+        // ===================== 光照系统 =====================
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
         scene.add(ambientLight);
         
-        // 主方向光（模拟太阳）
         const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
         dirLight.position.set(50, 80, 30);
         dirLight.castShadow = true;
@@ -181,7 +177,7 @@
         ground.receiveShadow = true;
         scene.add(ground);
 
-        // 十字路口道路（3D真实宽度/高度）
+        // 十字路口道路
         function createRoad(x, z, width, length, color = 0x2c2c2c) {
             const roadGeometry = new THREE.BoxGeometry(width, 0.1, length);
             const roadMaterial = new THREE.MeshStandardMaterial({
@@ -195,10 +191,7 @@
             scene.add(road);
             return road;
         }
-
-        // 主路（南北向）
         createRoad(0, 0, 18, 200);
-        // 辅路（东西向）
         createRoad(0, 0, 200, 18);
 
         // 车道线
@@ -209,41 +202,25 @@
                 metalness: 0.9
             });
             
-            // 南北向车道线
             for (let i = -90; i <= 90; i += 8) {
-                // 左侧虚线
-                const leftMarker = new THREE.Mesh(
-                    new THREE.BoxGeometry(0.2, 0.02, 4),
-                    markerMaterial
-                );
+                const leftMarker = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.02, 4), markerMaterial);
                 leftMarker.position.set(-6, 0.06, i);
                 leftMarker.castShadow = true;
                 scene.add(leftMarker);
 
-                // 右侧虚线
-                const rightMarker = new THREE.Mesh(
-                    new THREE.BoxGeometry(0.2, 0.02, 4),
-                    markerMaterial
-                );
+                const rightMarker = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.02, 4), markerMaterial);
                 rightMarker.position.set(6, 0.06, i);
                 rightMarker.castShadow = true;
                 scene.add(rightMarker);
             }
 
-            // 东西向车道线
             for (let i = -90; i <= 90; i += 8) {
-                const topMarker = new THREE.Mesh(
-                    new THREE.BoxGeometry(4, 0.02, 0.2),
-                    markerMaterial
-                );
+                const topMarker = new THREE.Mesh(new THREE.BoxGeometry(4, 0.02, 0.2), markerMaterial);
                 topMarker.position.set(i, 0.06, -6);
                 topMarker.castShadow = true;
                 scene.add(topMarker);
 
-                const bottomMarker = new THREE.Mesh(
-                    new THREE.BoxGeometry(4, 0.02, 0.2),
-                    markerMaterial
-                );
+                const bottomMarker = new THREE.Mesh(new THREE.BoxGeometry(4, 0.02, 0.2), markerMaterial);
                 bottomMarker.position.set(i, 0.06, 6);
                 bottomMarker.castShadow = true;
                 scene.add(bottomMarker);
@@ -266,7 +243,7 @@
         }
         createLaneMarkers();
 
-        // 路边护栏
+        // 护栏
         function createGuardRail(x, z, rotation = 0) {
             const railGeometry = new THREE.BoxGeometry(0.3, 0.8, 100);
             const railMaterial = new THREE.MeshStandardMaterial({ color: 0x444444 });
@@ -283,7 +260,6 @@
         createGuardRail(0, 12, Math.PI / 2);
 
         // ===================== 3D车辆系统 =====================
-        // 创建3D车辆（带车身/车轮/车窗）
         function createCar(color = 0xff3333, x = 0, z = 0) {
             const carGroup = new THREE.Group();
             
@@ -378,8 +354,9 @@
             return carGroup;
         }
 
-        // 玩家车辆（修改初始位置为z=20，远离路口+道路正中央）
-        const playerCar = createCar(0xff3333, 0, 20);
+        // 🔥 关键修复：玩家初始位置改为 z=10（绝对安全区）
+        const playerCar = createCar(0xff3333, 0, 10);
+        
         // 多NPC车辆（分布在十字路口不同位置）
         const npcCars = [
             createCar(0x3366ff, -8, -60),   // 左侧车道NPC
@@ -499,8 +476,8 @@
                 triggerCrash();
             }
 
-            // 越线/撞护栏（放宽阈值到13，避免误判）
-            if (Math.abs(playerPos.x) > 13 || Math.abs(playerPos.z) > 13) {
+            // 🔥 关键修复：护栏碰撞阈值改为15（避免初始位置误判）
+            if (Math.abs(playerPos.x) > 15 || Math.abs(playerPos.z) > 15) {
                 gameState.isCrashed = true;
                 gameState.crashType = "护栏碰撞";
                 gameState.crashDesc = "车辆驶出道路，碰撞路边护栏，违规驾驶";
@@ -516,7 +493,7 @@
             }
         }
 
-        // 触发事故
+        // 触发事故（兼容小程序通信）
         function triggerCrash() {
             document.getElementById('statusDisplay').textContent = `事故：${gameState.crashType}`;
             
@@ -527,7 +504,7 @@
             setTimeout(() => {
                 alert(`⚠️ ${gameState.crashType}！\n原因：${gameState.crashDesc}`);
                 
-                // 微信小程序消息回传
+                // 微信小程序消息回传（核心：和你的小程序onGameMessage对接）
                 if (typeof wx !== "undefined") {
                     wx.miniProgram.postMessage({
                         data: {
@@ -535,7 +512,8 @@
                             accidentDesc: gameState.crashDesc
                         }
                     });
-                    wx.miniProgram.navigateBack({ delta: 1 });
+                    // 可选：触发回传后返回小程序
+                    // wx.miniProgram.navigateBack({ delta: 1 });
                 }
             }, 500);
         }
