@@ -103,6 +103,40 @@
             display: flex;
             gap: 20px;
         }
+        /* 事故提示层（不阻塞消息） */
+        .crash-tip {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.9);
+            padding: 30px;
+            border-radius: 10px;
+            z-index: 200;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .crash-tip.show {
+            opacity: 1;
+        }
+        .crash-tip-title {
+            font-size: 24px;
+            color: #e53935;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .crash-tip-desc {
+            font-size: 16px;
+            color: #fff;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .crash-tip-hint {
+            font-size: 14px;
+            color: #ccc;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -125,6 +159,13 @@
                 <div class="btn btn-accel" id="btnAccel">油门</div>
             </div>
         </div>
+    </div>
+
+    <!-- 事故提示层（替代alert，不阻塞消息） -->
+    <div class="crash-tip" id="crashTip">
+        <div class="crash-tip-title" id="crashTipTitle"></div>
+        <div class="crash-tip-desc" id="crashTipDesc"></div>
+        <div class="crash-tip-hint">AI正在定责，请稍候...</div>
     </div>
 
     <!-- Three.js 核心库 -->
@@ -494,34 +535,37 @@
             }
         }
 
-        // 触发事故（确保消息传给小程序）
+        // 🔥 核心修复：移除alert，改用静默发送+UI提示
         function triggerCrash() {
             document.getElementById('statusDisplay').textContent = `事故：${gameState.crashType}`;
             
             // 震动反馈
             if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-            
-            setTimeout(() => {
-                console.log("发送事故数据给小程序：", {
-                    accidentType: gameState.crashType,
-                    accidentDesc: gameState.crashDesc
+
+            // 显示事故提示层（替代alert）
+            const crashTip = document.getElementById('crashTip');
+            const crashTipTitle = document.getElementById('crashTipTitle');
+            const crashTipDesc = document.getElementById('crashTipDesc');
+            crashTipTitle.textContent = `⚠️ ${gameState.crashType}`;
+            crashTipDesc.textContent = gameState.crashDesc;
+            crashTip.classList.add('show');
+
+            // 立即发送消息（不延迟、不阻塞）
+            console.log("【H5】发送事故消息给小程序：", {
+                accidentType: gameState.crashType,
+                accidentDesc: gameState.crashDesc
+            });
+
+            if (typeof wx !== "undefined") {
+                // 🔥 关键：直接发送，不套setTimeout，不阻塞
+                wx.miniProgram.postMessage({
+                    data: [{
+                        accidentType: gameState.crashType,
+                        accidentDesc: gameState.crashDesc
+                    }]
                 });
-                
-                // 强制触发消息（解决小程序接收延迟）
-                if (typeof wx !== "undefined") {
-                    wx.miniProgram.postMessage({
-                        data: [ // 包装成数组，适配小程序接收格式
-                            {
-                                accidentType: gameState.crashType,
-                                accidentDesc: gameState.crashDesc
-                            }
-                        ]
-                    });
-                    alert(`⚠️ ${gameState.crashType}！\n原因：${gameState.crashDesc}\n\n已通知AI定责`);
-                } else {
-                    alert(`⚠️ ${gameState.crashType}！\n原因：${gameState.crashDesc}`);
-                }
-            }, 500);
+                console.log("【H5】消息已发送，小程序将触发AI定责");
+            }
         }
 
         // 🔥 修复按钮无响应：兼容移动端touch事件
