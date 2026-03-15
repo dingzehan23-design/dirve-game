@@ -3,326 +3,635 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D 专业驾驶模拟器</title>
+    <title>3D超写实驾驶模拟器</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            background: #1a1a2e;
+            background: #0a0a0a;
             font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
             color: #fff;
             touch-action: manipulation;
             overflow: hidden;
+            height: 100vh;
         }
         #gameCanvas {
-            width: 100vw;
-            height: 100vh;
+            width: 100%;
+            height: 100%;
             display: block;
         }
-        .ui-overlay {
+        .ui-hud {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
             pointer-events: none;
+            z-index: 100;
         }
-        .top-bar {
+        .hud-top {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 15px 20px;
-            background: rgba(0,0,0,0.5);
-            backdrop-filter: blur(8px);
+            padding: 20px 30px;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
         }
-        .level-info {
-            font-size: 20px;
+        .hud-speed {
+            font-size: 48px;
             font-weight: bold;
+            color: #00ff9d;
+            text-shadow: 0 0 10px rgba(0,255,157,0.5);
         }
-        .objective {
-            font-size: 14px;
+        .hud-unit {
+            font-size: 18px;
+            color: #ccc;
+            margin-left: 5px;
+        }
+        .hud-status {
+            font-size: 18px;
             color: #ffdd57;
-            margin-top: 4px;
         }
-        .timer-speed {
-            text-align: right;
-        }
-        .timer {
-            font-size: 22px;
-            font-weight: bold;
-            color: #fff;
-        }
-        .speed {
-            font-size: 24px;
-            font-weight: bold;
-            color: #00ff88;
-            margin-top: 4px;
-        }
-        .control-panel {
+        .hud-bottom {
             position: absolute;
-            bottom: 20px;
+            bottom: 30px;
             left: 0;
             right: 0;
             display: flex;
             justify-content: space-between;
-            padding: 0 20px;
+            padding: 0 30px;
             pointer-events: all;
         }
-        .steer-buttons {
+        .btn {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.3);
+            background: rgba(0,0,0,0.5);
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
             display: flex;
-            gap: 15px;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            transition: all 0.15s ease;
         }
-        .action-buttons {
-            display: flex;
-            gap: 15px;
+        .btn:active {
+            transform: scale(0.95);
+            background: rgba(0,0,0,0.8);
+            border-color: rgba(255,255,255,0.6);
         }
-        .control-btn {
+        .btn-accel {
+            background: linear-gradient(145deg, rgba(16,185,129,0.5), rgba(5,150,105,0.8));
+        }
+        .btn-brake {
+            background: linear-gradient(145deg, rgba(239,68,68,0.5), rgba(220,38,38,0.8));
+        }
+        .btn-steer {
             width: 70px;
             height: 70px;
-            border: none;
-            border-radius: 50%;
-            background: rgba(0,0,0,0.6);
-            color: white;
-            font-size: 16px;
-            font-weight: 600;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-            transition: all 0.15s ease;
-            cursor: pointer;
+            font-size: 30px;
         }
-        .control-btn:active {
-            transform: scale(0.92);
-            background: rgba(0,0,0,0.8);
+        .steer-group {
+            display: flex;
+            gap: 20px;
         }
-        .control-btn.accel {
-            background: linear-gradient(145deg, #10b981, #059669);
-        }
-        .control-btn.brake {
-            background: linear-gradient(145deg, #ef4444, #dc2626);
+        .action-group {
+            display: flex;
+            gap: 20px;
         }
     </style>
 </head>
 <body>
     <canvas id="gameCanvas"></canvas>
-    <div class="ui-overlay">
-        <div class="top-bar">
+    <div class="ui-hud">
+        <div class="hud-top">
             <div>
-                <div class="level-info">关卡 0</div>
-                <div class="objective">在60秒内到达终点</div>
-                <div class="objective" style="color: #aaa; font-size: 12px; margin-top: 8px;">行驶时间小于42秒 | 不使用刹车完成比赛</div>
+                <span class="hud-speed" id="speedDisplay">0</span>
+                <span class="hud-unit">KM/H</span>
             </div>
-            <div class="timer-speed">
-                <div class="timer" id="timer">00:56</div>
-                <div class="speed" id="speedDisplay">15 km/h</div>
-            </div>
+            <div class="hud-status" id="statusDisplay">就绪 - 点击油门开始驾驶</div>
         </div>
-        <div class="control-panel">
-            <div class="steer-buttons">
-                <button class="control-btn" id="btnLeft">←</button>
-                <button class="control-btn" id="btnRight">→</button>
+        <div class="hud-bottom">
+            <div class="steer-group">
+                <div class="btn btn-steer" id="btnLeft">←</div>
+                <div class="btn btn-steer" id="btnRight">→</div>
             </div>
-            <div class="action-buttons">
-                <button class="control-btn brake" id="btnBrake">刹车</button>
-                <button class="control-btn accel" id="btnAccel">油门</button>
+            <div class="action-group">
+                <div class="btn btn-brake" id="btnBrake">刹车</div>
+                <div class="btn btn-accel" id="btnAccel">油门</div>
             </div>
         </div>
     </div>
 
-    <!-- 引入 Three.js -->
-    <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+    <!-- Three.js 核心库 -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <!-- 轨道控制器（可选，用于调试） -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- 微信小程序通信 -->
     <script src="https://res.wx.qq.com/open/js/jweixin-1.6.0.js"></script>
+
     <script>
-        // 基础 Three.js 场景初始化
+        // ===================== 核心3D引擎初始化 =====================
         const scene = new THREE.Scene();
+        scene.fog = new THREE.Fog(0x87ceeb, 50, 200);
+        
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('gameCanvas'), antialias: true });
+        camera.position.set(0, 5, 10);
+        
+        const renderer = new THREE.WebGLRenderer({
+            canvas: document.getElementById('gameCanvas'),
+            antialias: true,
+            alpha: true
+        });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-        // 光照
+        // ===================== 光照系统（3D真实光影） =====================
+        // 环境光
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
         scene.add(ambientLight);
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(50, 100, 50);
-        directionalLight.castShadow = true;
-        scene.add(directionalLight);
+        
+        // 主方向光（模拟太阳）
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        dirLight.position.set(50, 80, 30);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        dirLight.shadow.camera.near = 0.5;
+        dirLight.shadow.camera.far = 500;
+        dirLight.shadow.camera.left = -100;
+        dirLight.shadow.camera.right = 100;
+        dirLight.shadow.camera.top = 100;
+        dirLight.shadow.camera.bottom = -100;
+        scene.add(dirLight);
 
-        // 道路
-        const roadGeometry = new THREE.PlaneGeometry(20, 200);
-        const roadMaterial = new THREE.MeshLambertMaterial({ color: 0x4a4a4a });
-        const road = new THREE.Mesh(roadGeometry, roadMaterial);
-        road.rotation.x = -Math.PI / 2;
-        scene.add(road);
+        // ===================== 场景构建 =====================
+        // 地面
+        const groundGeometry = new THREE.PlaneGeometry(400, 400);
+        const groundMaterial = new THREE.MeshStandardMaterial({
+            color: 0x696969,
+            roughness: 0.9,
+            metalness: 0.1
+        });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // 十字路口道路（3D真实宽度/高度）
+        function createRoad(x, z, width, length, color = 0x2c2c2c) {
+            const roadGeometry = new THREE.BoxGeometry(width, 0.1, length);
+            const roadMaterial = new THREE.MeshStandardMaterial({
+                color: color,
+                roughness: 0.8,
+                metalness: 0.2
+            });
+            const road = new THREE.Mesh(roadGeometry, roadMaterial);
+            road.position.set(x, 0.05, z);
+            road.receiveShadow = true;
+            scene.add(road);
+            return road;
+        }
+
+        // 主路（南北向）
+        createRoad(0, 0, 18, 200);
+        // 辅路（东西向）
+        createRoad(0, 0, 200, 18);
 
         // 车道线
-        const lineGeometry = new THREE.PlaneGeometry(0.2, 5);
-        const lineMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-        for (let i = -100; i < 100; i += 10) {
-            const line1 = new THREE.Mesh(lineGeometry, lineMaterial);
-            line1.position.set(-4, 0.01, i);
-            line1.rotation.x = -Math.PI / 2;
-            scene.add(line1);
-            const line2 = new THREE.Mesh(lineGeometry, lineMaterial);
-            line2.position.set(4, 0.01, i);
-            line2.rotation.x = -Math.PI / 2;
-            scene.add(line2);
-        }
-        const centerLine = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 200), new THREE.MeshBasicMaterial({ color: 0xffff00 }));
-        centerLine.position.set(0, 0.01, 0);
-        centerLine.rotation.x = -Math.PI / 2;
-        scene.add(centerLine);
+        function createLaneMarkers() {
+            const markerMaterial = new THREE.MeshStandardMaterial({
+                color: 0xffffff,
+                roughness: 0.1,
+                metalness: 0.9
+            });
+            
+            // 南北向车道线
+            for (let i = -90; i <= 90; i += 8) {
+                // 左侧虚线
+                const leftMarker = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.2, 0.02, 4),
+                    markerMaterial
+                );
+                leftMarker.position.set(-6, 0.06, i);
+                leftMarker.castShadow = true;
+                scene.add(leftMarker);
 
-        // 护栏
-        const guardrailGeometry = new THREE.BoxGeometry(0.5, 0.8, 200);
-        const guardrailMaterial = new THREE.MeshLambertMaterial({ color: 0x2d3748 });
-        const guardrailLeft = new THREE.Mesh(guardrailGeometry, guardrailMaterial);
-        guardrailLeft.position.set(-10.5, 0.4, 0);
-        scene.add(guardrailLeft);
-        const guardrailRight = new THREE.Mesh(guardrailGeometry, guardrailMaterial);
-        guardrailRight.position.set(10.5, 0.4, 0);
-        scene.add(guardrailRight);
+                // 右侧虚线
+                const rightMarker = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.2, 0.02, 4),
+                    markerMaterial
+                );
+                rightMarker.position.set(6, 0.06, i);
+                rightMarker.castShadow = true;
+                scene.add(rightMarker);
+            }
 
-        // 棕榈树（简单版）
-        function createPalmTree(x, z) {
-            const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 4), new THREE.MeshLambertMaterial({ color: 0x8B4513 }));
-            trunk.position.set(x, 2, z);
-            scene.add(trunk);
-            const leaves = new THREE.Mesh(new THREE.ConeGeometry(2, 3, 8), new THREE.MeshLambertMaterial({ color: 0x228B22 }));
-            leaves.position.set(x, 5.5, z);
-            scene.add(leaves);
+            // 东西向车道线
+            for (let i = -90; i <= 90; i += 8) {
+                const topMarker = new THREE.Mesh(
+                    new THREE.BoxGeometry(4, 0.02, 0.2),
+                    markerMaterial
+                );
+                topMarker.position.set(i, 0.06, -6);
+                topMarker.castShadow = true;
+                scene.add(topMarker);
+
+                const bottomMarker = new THREE.Mesh(
+                    new THREE.BoxGeometry(4, 0.02, 0.2),
+                    markerMaterial
+                );
+                bottomMarker.position.set(i, 0.06, 6);
+                bottomMarker.castShadow = true;
+                scene.add(bottomMarker);
+            }
+
+            // 中心双黄线
+            const centerLine = new THREE.Mesh(
+                new THREE.BoxGeometry(0.4, 0.02, 200),
+                new THREE.MeshStandardMaterial({ color: 0xffff00 })
+            );
+            centerLine.position.set(0, 0.06, 0);
+            scene.add(centerLine);
+
+            const centerLine2 = new THREE.Mesh(
+                new THREE.BoxGeometry(200, 0.02, 0.4),
+                new THREE.MeshStandardMaterial({ color: 0xffff00 })
+            );
+            centerLine2.position.set(0, 0.06, 0);
+            scene.add(centerLine2);
         }
-        for (let i = -100; i < 100; i += 20) {
-            createPalmTree(-15, i);
-            createPalmTree(15, i);
+        createLaneMarkers();
+
+        // 路边护栏
+        function createGuardRail(x, z, rotation = 0) {
+            const railGeometry = new THREE.BoxGeometry(0.3, 0.8, 100);
+            const railMaterial = new THREE.MeshStandardMaterial({ color: 0x444444 });
+            const rail = new THREE.Mesh(railGeometry, railMaterial);
+            rail.position.set(x, 0.45, z);
+            rail.rotation.y = rotation;
+            rail.castShadow = true;
+            scene.add(rail);
+            return rail;
+        }
+        createGuardRail(-12, 0);
+        createGuardRail(12, 0);
+        createGuardRail(0, -12, Math.PI / 2);
+        createGuardRail(0, 12, Math.PI / 2);
+
+        // ===================== 3D车辆系统 =====================
+        // 创建3D车辆（带车身/车轮/车窗）
+        function createCar(color = 0xff3333, x = 0, z = 0) {
+            const carGroup = new THREE.Group();
+            
+            // 车身
+            const bodyGeometry = new THREE.BoxGeometry(2.2, 1, 4.5);
+            const bodyMaterial = new THREE.MeshStandardMaterial({
+                color: color,
+                roughness: 0.3,
+                metalness: 0.7
+            });
+            const carBody = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            carBody.position.y = 0.5;
+            carBody.castShadow = true;
+            carGroup.add(carBody);
+
+            // 车顶
+            const roofGeometry = new THREE.BoxGeometry(1.8, 0.8, 2);
+            const roofMaterial = new THREE.MeshStandardMaterial({
+                color: color,
+                roughness: 0.2,
+                metalness: 0.8
+            });
+            const roof = new THREE.Mesh(roofGeometry, roofMaterial);
+            roof.position.set(0, 1.3, -0.5);
+            carGroup.add(roof);
+
+            // 车窗
+            const windowGeometry = new THREE.BoxGeometry(1.7, 0.7, 1.9);
+            const windowMaterial = new THREE.MeshStandardMaterial({
+                color: 0x111111,
+                roughness: 0.1,
+                metalness: 0.9,
+                transparent: true,
+                opacity: 0.7
+            });
+            const window = new THREE.Mesh(windowGeometry, windowMaterial);
+            window.position.set(0, 1.35, -0.5);
+            carGroup.add(window);
+
+            // 车轮
+            function createWheel(x, z) {
+                const wheelGroup = new THREE.Group();
+                
+                // 轮胎
+                const tireGeometry = new THREE.CylinderGeometry(0.4, 0.4, 0.3, 16);
+                const tireMaterial = new THREE.MeshStandardMaterial({
+                    color: 0x111111,
+                    roughness: 0.1,
+                    metalness: 0.9
+                });
+                const tire = new THREE.Mesh(tireGeometry, tireMaterial);
+                tire.rotation.z = Math.PI / 2;
+                wheelGroup.add(tire);
+
+                // 轮毂
+                const rimGeometry = new THREE.CylinderGeometry(0.3, 0.3, 0.25, 16);
+                const rimMaterial = new THREE.MeshStandardMaterial({
+                    color: 0x999999,
+                    roughness: 0.2,
+                    metalness: 0.9
+                });
+                const rim = new THREE.Mesh(rimGeometry, rimMaterial);
+                rim.rotation.z = Math.PI / 2;
+                wheelGroup.add(rim);
+
+                wheelGroup.position.set(x, 0.4, z);
+                carGroup.add(wheelGroup);
+            }
+
+            // 四个车轮
+            createWheel(1.2, 1.8);  // 右前
+            createWheel(-1.2, 1.8); // 左前
+            createWheel(1.2, -1.8); // 右后
+            createWheel(-1.2, -1.8);// 左后
+
+            // 车牌
+            const plateGeometry = new THREE.PlaneGeometry(1.2, 0.6);
+            const plateMaterial = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                side: THREE.DoubleSide
+            });
+            const plate = new THREE.Mesh(plateGeometry, plateMaterial);
+            plate.position.set(0, 0.6, 2.3);
+            plate.rotation.y = Math.PI;
+            carGroup.add(plate);
+
+            // 设置初始位置
+            carGroup.position.set(x, 0, z);
+            carGroup.castShadow = true;
+            
+            scene.add(carGroup);
+            return carGroup;
         }
 
         // 玩家车辆
-        const carGeometry = new THREE.BoxGeometry(2, 1, 4);
-        const carMaterial = new THREE.MeshLambertMaterial({ color: 0xe53e3e });
-        const car = new THREE.Mesh(carGeometry, carMaterial);
-        car.position.set(0, 0.5, 0);
-        car.castShadow = true;
-        scene.add(car);
-        // 车牌
-        const plateGeometry = new THREE.PlaneGeometry(1.5, 0.5);
-        const plateMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-        const plate = new THREE.Mesh(plateGeometry, plateMaterial);
-        plate.position.set(0, 0.2, 2.1);
-        scene.add(plate);
-        const plateText = document.createElement('canvas');
-        const plateCtx = plateText.getContext('2d');
-        plateText.width = 300;
-        plateText.height = 100;
-        plateCtx.fillStyle = '#fff';
-        plateCtx.fillRect(0, 0, 300, 100);
-        plateCtx.fillStyle = '#000';
-        plateCtx.font = '40px Arial';
-        plateCtx.fillText('T 842 ET 150', 20, 60);
-        const plateTexture = new THREE.CanvasTexture(plateText);
-        plate.material.map = plateTexture;
+        const playerCar = createCar(0xff3333, 0, 80);
+        // 多NPC车辆（分布在十字路口不同位置）
+        const npcCars = [
+            createCar(0x3366ff, -8, -60),   // 左侧车道NPC
+            createCar(0x33cc33, 8, -70),    // 右侧车道NPC
+            createCar(0xff9900, -70, -8),   // 横向左侧NPC
+            createCar(0x9933ff, 60, 8)      // 横向右侧NPC
+        ];
 
-        // NPC 车辆
-        const npcCar = new THREE.Mesh(carGeometry, new THREE.MeshLambertMaterial({ color: 0x3b82f6 }));
-        npcCar.position.set(0, 0.5, -30);
-        scene.add(npcCar);
+        // 狮子障碍物（十字路口中央）
+        function createLion() {
+            const lionGroup = new THREE.Group();
+            
+            // 身体
+            const bodyGeometry = new THREE.SphereGeometry(1.2, 16, 16);
+            const bodyMaterial = new THREE.MeshStandardMaterial({
+                color: 0xdaa520,
+                roughness: 0.8,
+                metalness: 0.1
+            });
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            body.position.set(0, 1.2, 0);
+            lionGroup.add(body);
 
-        // 相机跟随车辆
-        function updateCamera() {
-            camera.position.set(car.position.x, 4, car.position.z + 8);
-            camera.lookAt(car.position);
+            // 头部
+            const headGeometry = new THREE.SphereGeometry(0.8, 16, 16);
+            const head = new THREE.Mesh(headGeometry, bodyMaterial);
+            head.position.set(0.8, 1.5, 0);
+            lionGroup.add(head);
+
+            // 腿
+            function createLeg(x, z) {
+                const legGeometry = new THREE.CylinderGeometry(0.3, 0.3, 1.2, 8);
+                const leg = new THREE.Mesh(legGeometry, bodyMaterial);
+                leg.position.set(x, 0.6, z);
+                lionGroup.add(leg);
+            }
+            createLeg(0.6, 0.6);
+            createLeg(-0.6, 0.6);
+            createLeg(0.6, -0.6);
+            createLeg(-0.6, -0.6);
+
+            lionGroup.position.set(0, 0, 0);
+            scene.add(lionGroup);
+            return lionGroup;
         }
+        const lion = createLion();
 
-        // 游戏状态
-        const game = {
-            car: { x: 0, z: 0, speed: 0, maxSpeed: 80, angle: 0 },
-            npcCar: { x: 0, z: -30, speed: 10 },
-            time: 56,
-            isCrash: false,
-            isSpeeding: false,
-            isOutOfLane: false
+        // ===================== 游戏逻辑 =====================
+        const gameState = {
+            speed: 0,
+            maxSpeed: 80,
+            steering: 0,
+            steeringSpeed: 0.08,
+            acceleration: 5,
+            deceleration: 8,
+            friction: 0.8,
+            isCrashed: false,
+            crashType: "",
+            crashDesc: "",
+            npcSpeeds: [2, 1.8, 1.5, 2.2], // 不同NPC速度
+            npcDirections: [0, 0, Math.PI/2, -Math.PI/2] // NPC行驶方向
         };
 
-        // 控制逻辑
-        document.getElementById('btnAccel').addEventListener('pointerdown', () => {
-            if (game.isCrash) return;
-            game.car.speed = Math.min(game.car.speed + 3, game.car.maxSpeed);
-        });
-        document.getElementById('btnBrake').addEventListener('pointerdown', () => {
-            if (game.isCrash) return;
-            game.car.speed = Math.max(game.car.speed - 5, 0);
-        });
-        document.getElementById('btnLeft').addEventListener('pointerdown', () => {
-            if (game.isCrash || game.car.speed === 0) return;
-            game.car.angle = Math.max(-Math.PI / 6, game.car.angle - 0.05);
-        });
-        document.getElementById('btnRight').addEventListener('pointerdown', () => {
-            if (game.isCrash || game.car.speed === 0) return;
-            game.car.angle = Math.min(Math.PI / 6, game.car.angle + 0.05);
-        });
-
-        // 更新游戏
-        function updateGame() {
-            if (game.isCrash) return;
-
-            // 车辆移动
-            game.car.x += Math.sin(game.car.angle) * (game.car.speed / 20);
-            game.car.z += Math.cos(game.car.angle) * (game.car.speed / 20);
-            car.position.set(game.car.x, 0.5, game.car.z);
-            car.rotation.y = game.car.angle;
-
-            // NPC 车辆移动
-            game.npcCar.z += game.npcCar.speed / 20;
-            npcCar.position.set(game.npcCar.x, 0.5, game.npcCar.z);
-
-            // 碰撞检测
-            const dist = Math.hypot(game.car.x - game.npcCar.x, game.car.z - game.npcCar.z);
-            if (dist < 5) {
-                game.isCrash = true;
-                triggerAccident("追尾", "未保持安全车距，与前方车辆发生追尾碰撞");
-            }
-
-            // 越线检测
-            if (Math.abs(game.car.x) > 8) {
-                game.isOutOfLane = true;
-                triggerAccident("越线", "车辆偏离规定车道行驶");
-            }
-
-            // 超速检测
-            if (game.car.speed > 60) {
-                game.isSpeeding = true;
-                triggerAccident("超速", `当前速度${game.car.speed}km/h，超出限速60km/h`);
-            }
-
-            // 时间更新
-            if (game.time > 0 && !game.isCrash) {
-                game.time -= 0.016;
-                document.getElementById('timer').textContent = `00:${Math.ceil(game.time).toString().padStart(2, '0')}`;
-            }
-
-            // UI 更新
-            document.getElementById('speedDisplay').textContent = `${Math.round(game.car.speed)} km/h`;
-            updateCamera();
-            renderer.render(scene, camera);
-            requestAnimationFrame(updateGame);
+        // 更新NPC车辆
+        function updateNPCs() {
+            npcCars.forEach((car, index) => {
+                const speed = gameState.npcSpeeds[index];
+                const dir = gameState.npcDirections[index];
+                
+                // 移动
+                car.position.x += Math.sin(dir) * speed;
+                car.position.z += Math.cos(dir) * speed;
+                
+                // 边界重置
+                if (car.position.z > 100) car.position.z = -90;
+                if (car.position.z < -100) car.position.z = 90;
+                if (car.position.x > 100) car.position.x = -90;
+                if (car.position.x < -100) car.position.x = 90;
+                
+                // 朝向
+                car.rotation.y = dir;
+            });
         }
 
-        // 事故触发
-        function triggerAccident(type, desc) {
-            if (navigator.vibrate) navigator.vibrate(200);
+        // 碰撞检测
+        function checkCollisions() {
+            if (gameState.isCrashed) return;
+
+            const playerPos = playerCar.position;
+            
+            // 碰撞NPC车辆
+            npcCars.forEach((npcCar, index) => {
+                const npcPos = npcCar.position;
+                const distance = Math.hypot(
+                    playerPos.x - npcPos.x,
+                    playerPos.z - npcPos.z
+                );
+
+                if (distance < 4) {
+                    gameState.isCrashed = true;
+                    gameState.crashType = "车辆碰撞";
+                    gameState.crashDesc = `与${index+1}号NPC车辆发生${index%2===0?'正面':'侧面'}碰撞，未保持安全车距`;
+                    triggerCrash();
+                }
+            });
+
+            // 碰撞狮子
+            const lionPos = lion.position;
+            const lionDistance = Math.hypot(
+                playerPos.x - lionPos.x,
+                playerPos.z - lionPos.z
+            );
+            if (lionDistance < 3) {
+                gameState.isCrashed = true;
+                gameState.crashType = "动物碰撞";
+                gameState.crashDesc = "在十字路口未注意观察，撞到横穿道路的狮子";
+                triggerCrash();
+            }
+
+            // 越线/撞护栏
+            if (Math.abs(playerPos.x) > 11 || Math.abs(playerPos.z) > 11) {
+                gameState.isCrashed = true;
+                gameState.crashType = "护栏碰撞";
+                gameState.crashDesc = "车辆驶出道路，碰撞路边护栏，违规驾驶";
+                triggerCrash();
+            }
+
+            // 超速
+            if (gameState.speed > 60 && !gameState.isCrashed) {
+                gameState.isCrashed = true;
+                gameState.crashType = "超速违章";
+                gameState.crashDesc = `当前车速${Math.round(gameState.speed)}km/h，超过十字路口限速60km/h`;
+                triggerCrash();
+            }
+        }
+
+        // 触发事故
+        function triggerCrash() {
+            document.getElementById('statusDisplay').textContent = `事故：${gameState.crashType}`;
+            
+            // 震动反馈
+            if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+            
+            // 延迟提示并回传小程序
             setTimeout(() => {
-                alert(`⚠️ 发生${type}事故！\n原因：${desc}`);
+                alert(`⚠️ ${gameState.crashType}！\n原因：${gameState.crashDesc}`);
+                
+                // 微信小程序消息回传
                 if (typeof wx !== "undefined") {
-                    wx.miniProgram.postMessage({ data: { accidentType: type, accidentDesc: desc } });
+                    wx.miniProgram.postMessage({
+                        data: {
+                            accidentType: gameState.crashType,
+                            accidentDesc: gameState.crashDesc
+                        }
+                    });
                     wx.miniProgram.navigateBack({ delta: 1 });
                 }
             }, 500);
         }
 
-        // 启动游戏
-        updateGame();
+        // 控制逻辑
+        let isAccelPressed = false;
+        let isBrakePressed = false;
+        let isLeftPressed = false;
+        let isRightPressed = false;
+
+        // 绑定按键事件
+        document.getElementById('btnAccel').addEventListener('touchstart', () => isAccelPressed = true);
+        document.getElementById('btnAccel').addEventListener('touchend', () => isAccelPressed = false);
+        document.getElementById('btnBrake').addEventListener('touchstart', () => isBrakePressed = true);
+        document.getElementById('btnBrake').addEventListener('touchend', () => isBrakePressed = false);
+        document.getElementById('btnLeft').addEventListener('touchstart', () => isLeftPressed = true);
+        document.getElementById('btnLeft').addEventListener('touchend', () => isLeftPressed = false);
+        document.getElementById('btnRight').addEventListener('touchstart', () => isRightPressed = true);
+        document.getElementById('btnRight').addEventListener('touchend', () => isRightPressed = false);
+
+        // 游戏主循环
+        function gameLoop() {
+            if (!gameState.isCrashed) {
+                // 加速/减速
+                if (isAccelPressed) {
+                    gameState.speed = Math.min(
+                        gameState.speed + gameState.acceleration * 0.016,
+                        gameState.maxSpeed
+                    );
+                } else if (isBrakePressed) {
+                    gameState.speed = Math.max(
+                        gameState.speed - gameState.deceleration * 0.016,
+                        0
+                    );
+                } else {
+                    // 自然减速
+                    gameState.speed *= gameState.friction;
+                }
+
+                // 转向
+                if (isLeftPressed) {
+                    gameState.steering = Math.max(
+                        gameState.steering - gameState.steeringSpeed,
+                        -Math.PI/4
+                    );
+                } else if (isRightPressed) {
+                    gameState.steering = Math.min(
+                        gameState.steering + gameState.steeringSpeed,
+                        Math.PI/4
+                    );
+                } else {
+                    // 转向回正
+                    gameState.steering *= 0.9;
+                }
+
+                // 更新玩家车辆位置和朝向
+                playerCar.rotation.y = gameState.steering;
+                playerCar.position.x += Math.sin(gameState.steering) * gameState.speed * 0.1;
+                playerCar.position.z -= Math.cos(gameState.steering) * gameState.speed * 0.1;
+
+                // 更新NPC
+                updateNPCs();
+                // 碰撞检测
+                checkCollisions();
+
+                // 更新UI
+                document.getElementById('speedDisplay').textContent = Math.round(gameState.speed);
+                if (!isAccelPressed && !isBrakePressed && gameState.speed > 0) {
+                    document.getElementById('statusDisplay').textContent = "行驶中 - 松开油门自动减速";
+                } else if (isAccelPressed) {
+                    document.getElementById('statusDisplay').textContent = "加速中 - 注意观察路况";
+                } else if (isBrakePressed) {
+                    document.getElementById('statusDisplay').textContent = "减速中 - 安全驾驶";
+                }
+            }
+
+            // 相机跟随（第三人称追尾视角）
+            camera.position.x = playerCar.position.x - Math.sin(playerCar.rotation.y) * 8;
+            camera.position.z = playerCar.position.z + Math.cos(playerCar.rotation.y) * 8;
+            camera.position.y = playerCar.position.y + 5;
+            camera.lookAt(playerCar.position.x, playerCar.position.y + 1, playerCar.position.z);
+
+            // 渲染场景
+            renderer.render(scene, camera);
+            requestAnimationFrame(gameLoop);
+        }
+
+        // 窗口自适应
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
+
+        // 启动游戏
+        gameLoop();
     </script>
 </body>
 </html>
