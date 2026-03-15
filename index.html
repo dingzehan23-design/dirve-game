@@ -378,8 +378,8 @@
             return carGroup;
         }
 
-        // 玩家车辆
-        const playerCar = createCar(0xff3333, 0, 80);
+        // 玩家车辆（修改初始位置为z=20，远离路口+道路正中央）
+        const playerCar = createCar(0xff3333, 0, 20);
         // 多NPC车辆（分布在十字路口不同位置）
         const npcCars = [
             createCar(0x3366ff, -8, -60),   // 左侧车道NPC
@@ -499,8 +499,8 @@
                 triggerCrash();
             }
 
-            // 越线/撞护栏
-            if (Math.abs(playerPos.x) > 11 || Math.abs(playerPos.z) > 11) {
+            // 越线/撞护栏（放宽阈值到13，避免误判）
+            if (Math.abs(playerPos.x) > 13 || Math.abs(playerPos.z) > 13) {
                 gameState.isCrashed = true;
                 gameState.crashType = "护栏碰撞";
                 gameState.crashDesc = "车辆驶出道路，碰撞路边护栏，违规驾驶";
