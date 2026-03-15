@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>3D超写实驾驶模拟器</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -13,6 +13,8 @@
             touch-action: manipulation;
             overflow: hidden;
             height: 100vh;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
         }
         #gameCanvas {
             width: 100%;
@@ -75,6 +77,7 @@
             cursor: pointer;
             backdrop-filter: blur(10px);
             transition: all 0.15s ease;
+            -webkit-tap-highlight-color: transparent;
         }
         .btn:active {
             transform: scale(0.95);
@@ -135,7 +138,7 @@
         scene.fog = new THREE.Fog(0x87ceeb, 50, 200);
         
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 5, 10);
+        camera.position.set(0, 5, 15); // 相机后移，避免初始视角遮挡
         
         const renderer = new THREE.WebGLRenderer({
             canvas: document.getElementById('gameCanvas'),
@@ -354,15 +357,15 @@
             return carGroup;
         }
 
-        // 🔥 关键修复：玩家初始位置改为 z=10（绝对安全区）
+        // 🔥 玩家初始位置（绝对安全区）
         const playerCar = createCar(0xff3333, 0, 10);
         
-        // 多NPC车辆（分布在十字路口不同位置）
+        // 🔥 4号NPC移到更远位置，避免初始碰撞
         const npcCars = [
-            createCar(0x3366ff, -8, -60),   // 左侧车道NPC
-            createCar(0x33cc33, 8, -70),    // 右侧车道NPC
-            createCar(0xff9900, -70, -8),   // 横向左侧NPC
-            createCar(0x9933ff, 60, 30)      // 横向右侧NPC
+            createCar(0x3366ff, -8, -60),   // 1号
+            createCar(0x33cc33, 8, -70),    // 2号
+            createCar(0xff9900, -70, -8),   // 3号
+            createCar(0x9933ff, 60, 50)     // 4号（z从30→50，彻底远离玩家）
         ];
 
         // 狮子障碍物（十字路口中央）
@@ -416,8 +419,8 @@
             isCrashed: false,
             crashType: "",
             crashDesc: "",
-            npcSpeeds: [2, 1.8, 1.5, 2.2], // 不同NPC速度
-            npcDirections: [0, 0, Math.PI/2, -Math.PI/2] // NPC行驶方向
+            npcSpeeds: [2, 1.8, 1.5, 2.2],
+            npcDirections: [0, 0, Math.PI/2, -Math.PI/2]
         };
 
         // 更新NPC车辆
@@ -426,9 +429,8 @@
                 const speed = gameState.npcSpeeds[index];
                 const dir = gameState.npcDirections[index];
                 
-                // 移动
-                car.position.x += Math.sin(dir) * speed;
-                car.position.z += Math.cos(dir) * speed;
+                car.position.x += Math.sin(dir) * speed * 0.1; // 减速NPC移动，避免快速撞玩家
+                car.position.z += Math.cos(dir) * speed * 0.1;
                 
                 // 边界重置
                 if (car.position.z > 100) car.position.z = -90;
@@ -436,7 +438,6 @@
                 if (car.position.x > 100) car.position.x = -90;
                 if (car.position.x < -100) car.position.x = 90;
                 
-                // 朝向
                 car.rotation.y = dir;
             });
         }
@@ -447,7 +448,7 @@
 
             const playerPos = playerCar.position;
             
-            // 碰撞NPC车辆
+            // 碰撞NPC
             npcCars.forEach((npcCar, index) => {
                 const npcPos = npcCar.position;
                 const distance = Math.hypot(
@@ -455,7 +456,7 @@
                     playerPos.z - npcPos.z
                 );
 
-                if (distance < 4) {
+                if (distance < 5) { // 碰撞距离从4→5，更宽松
                     gameState.isCrashed = true;
                     gameState.crashType = "车辆碰撞";
                     gameState.crashDesc = `与${index+1}号NPC车辆发生${index%2===0?'正面':'侧面'}碰撞，未保持安全车距`;
@@ -476,7 +477,7 @@
                 triggerCrash();
             }
 
-            // 🔥 关键修复：护栏碰撞阈值改为15（避免初始位置误判）
+            // 护栏碰撞
             if (Math.abs(playerPos.x) > 15 || Math.abs(playerPos.z) > 15) {
                 gameState.isCrashed = true;
                 gameState.crashType = "护栏碰撞";
@@ -493,46 +494,72 @@
             }
         }
 
-        // 触发事故（兼容小程序通信）
+        // 触发事故（确保消息传给小程序）
         function triggerCrash() {
             document.getElementById('statusDisplay').textContent = `事故：${gameState.crashType}`;
             
             // 震动反馈
             if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
             
-            // 延迟提示并回传小程序
             setTimeout(() => {
-                alert(`⚠️ ${gameState.crashType}！\n原因：${gameState.crashDesc}`);
+                console.log("发送事故数据给小程序：", {
+                    accidentType: gameState.crashType,
+                    accidentDesc: gameState.crashDesc
+                });
                 
-                // 微信小程序消息回传（核心：和你的小程序onGameMessage对接）
+                // 强制触发消息（解决小程序接收延迟）
                 if (typeof wx !== "undefined") {
                     wx.miniProgram.postMessage({
-                        data: {
-                            accidentType: gameState.crashType,
-                            accidentDesc: gameState.crashDesc
-                        }
+                        data: [ // 包装成数组，适配小程序接收格式
+                            {
+                                accidentType: gameState.crashType,
+                                accidentDesc: gameState.crashDesc
+                            }
+                        ]
                     });
-                    // 可选：触发回传后返回小程序
-                    // wx.miniProgram.navigateBack({ delta: 1 });
+                    alert(`⚠️ ${gameState.crashType}！\n原因：${gameState.crashDesc}\n\n已通知AI定责`);
+                } else {
+                    alert(`⚠️ ${gameState.crashType}！\n原因：${gameState.crashDesc}`);
                 }
             }, 500);
         }
 
-        // 控制逻辑
+        // 🔥 修复按钮无响应：兼容移动端touch事件
         let isAccelPressed = false;
         let isBrakePressed = false;
         let isLeftPressed = false;
         let isRightPressed = false;
 
-        // 绑定按键事件
-        document.getElementById('btnAccel').addEventListener('touchstart', () => isAccelPressed = true);
-        document.getElementById('btnAccel').addEventListener('touchend', () => isAccelPressed = false);
-        document.getElementById('btnBrake').addEventListener('touchstart', () => isBrakePressed = true);
-        document.getElementById('btnBrake').addEventListener('touchend', () => isBrakePressed = false);
-        document.getElementById('btnLeft').addEventListener('touchstart', () => isLeftPressed = true);
-        document.getElementById('btnLeft').addEventListener('touchend', () => isLeftPressed = false);
-        document.getElementById('btnRight').addEventListener('touchstart', () => isRightPressed = true);
-        document.getElementById('btnRight').addEventListener('touchend', () => isRightPressed = false);
+        // 绑定触摸+点击事件
+        function bindButtonEvents() {
+            // 油门
+            const accelBtn = document.getElementById('btnAccel');
+            accelBtn.addEventListener('touchstart', () => isAccelPressed = true);
+            accelBtn.addEventListener('touchend', () => isAccelPressed = false);
+            accelBtn.addEventListener('mousedown', () => isAccelPressed = true);
+            accelBtn.addEventListener('mouseup', () => isAccelPressed = false);
+
+            // 刹车
+            const brakeBtn = document.getElementById('btnBrake');
+            brakeBtn.addEventListener('touchstart', () => isBrakePressed = true);
+            brakeBtn.addEventListener('touchend', () => isBrakePressed = false);
+            brakeBtn.addEventListener('mousedown', () => isBrakePressed = true);
+            brakeBtn.addEventListener('mouseup', () => isBrakePressed = false);
+
+            // 左转向
+            const leftBtn = document.getElementById('btnLeft');
+            leftBtn.addEventListener('touchstart', () => isLeftPressed = true);
+            leftBtn.addEventListener('touchend', () => isLeftPressed = false);
+            leftBtn.addEventListener('mousedown', () => isLeftPressed = true);
+            leftBtn.addEventListener('mouseup', () => isLeftPressed = false);
+
+            // 右转向
+            const rightBtn = document.getElementById('btnRight');
+            rightBtn.addEventListener('touchstart', () => isRightPressed = true);
+            rightBtn.addEventListener('touchend', () => isRightPressed = false);
+            rightBtn.addEventListener('mousedown', () => isRightPressed = true);
+            rightBtn.addEventListener('mouseup', () => isRightPressed = false);
+        }
 
         // 游戏主循环
         function gameLoop() {
@@ -540,43 +567,36 @@
                 // 加速/减速
                 if (isAccelPressed) {
                     gameState.speed = Math.min(
-                        gameState.speed + gameState.acceleration * 0.016,
+                        gameState.speed + gameState.acceleration * 0.02, // 加速倍率提高，更易操作
                         gameState.maxSpeed
                     );
                 } else if (isBrakePressed) {
                     gameState.speed = Math.max(
-                        gameState.speed - gameState.deceleration * 0.016,
+                        gameState.speed - gameState.deceleration * 0.02,
                         0
                     );
                 } else {
-                    // 自然减速
                     gameState.speed *= gameState.friction;
                 }
 
                 // 转向
                 if (isLeftPressed) {
-                    gameState.steering = Math.max(
-                        gameState.steering - gameState.steeringSpeed,
-                        -Math.PI/4
-                    );
+                    gameState.steering -= gameState.steeringSpeed * 0.5; // 转向减速，更顺滑
+                    gameState.steering = Math.max(gameState.steering, -Math.PI/4);
                 } else if (isRightPressed) {
-                    gameState.steering = Math.min(
-                        gameState.steering + gameState.steeringSpeed,
-                        Math.PI/4
-                    );
+                    gameState.steering += gameState.steeringSpeed * 0.5;
+                    gameState.steering = Math.min(gameState.steering, Math.PI/4);
                 } else {
-                    // 转向回正
-                    gameState.steering *= 0.9;
+                    gameState.steering *= 0.95; // 转向回正更慢，更易控制
                 }
 
-                // 更新玩家车辆位置和朝向
+                // 更新玩家车辆
                 playerCar.rotation.y = gameState.steering;
                 playerCar.position.x += Math.sin(gameState.steering) * gameState.speed * 0.1;
                 playerCar.position.z -= Math.cos(gameState.steering) * gameState.speed * 0.1;
 
-                // 更新NPC
+                // 更新NPC和碰撞检测
                 updateNPCs();
-                // 碰撞检测
                 checkCollisions();
 
                 // 更新UI
@@ -590,10 +610,15 @@
                 }
             }
 
-            // 相机跟随（第三人称追尾视角）
-            camera.position.x = playerCar.position.x - Math.sin(playerCar.rotation.y) * 8;
-            camera.position.z = playerCar.position.z + Math.cos(playerCar.rotation.y) * 8;
-            camera.position.y = playerCar.position.y + 5;
+            // 相机跟随优化（更稳定）
+            const cameraOffset = new THREE.Vector3(
+                -Math.sin(playerCar.rotation.y) * 8,
+                5,
+                Math.cos(playerCar.rotation.y) * 8
+            );
+            camera.position.x = playerCar.position.x + cameraOffset.x;
+            camera.position.y = playerCar.position.y + cameraOffset.y;
+            camera.position.z = playerCar.position.z + cameraOffset.z;
             camera.lookAt(playerCar.position.x, playerCar.position.y + 1, playerCar.position.z);
 
             // 渲染场景
@@ -608,8 +633,9 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        // 启动游戏
-        gameLoop();
+        // 初始化
+        bindButtonEvents(); // 先绑定按钮事件
+        gameLoop(); // 启动游戏
     </script>
 </body>
 </html>
