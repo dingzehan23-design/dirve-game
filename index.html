@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <!-- 适配移动端 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>开车小游戏</title>
+    <style>
+        /* 重置样式 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background-color: #f5f5f5;
+            font-family: "微软雅黑";
+        }
+        /* 游戏容器 */
+        .game-container {
+            width: 100%;
+            max-width: 400px;
+            margin: 20px auto;
+        }
+        /* 游戏画布 */
+        #gameCanvas {
+            width: 100%;
+            height: 500px;
+            background-color: #333;
+            border-radius: 10px;
+        }
+        /* 操控按钮区域 */
+        .control-panel {
+            width: 100%;
+            max-width: 400px;
+            margin: 20px auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+        /* 按钮样式 */
+        .control-btn {
+            width: 80px;
+            height: 80px;
+            border: none;
+            border-radius: 50%;
+            background-color: #4299e1;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .control-btn:active {
+            background-color: #3182ce;
+            transform: scale(0.95);
+        }
+        /* 方向按钮行 */
+        .dir-row {
+            display: flex;
+            gap: 15px;
+        }
+        /* 状态提示 */
+        .status {
+            text-align: center;
+            font-size: 18px;
+            color: #333;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <!-- 游戏画布 -->
+        <canvas id="gameCanvas"></canvas>
+        <!-- 状态提示 -->
+        <div class="status" id="gameStatus">就绪：点击加速开始驾驶</div>
+    </div>
+
+    <!-- 操控按钮 -->
+    <div class="control-panel">
+        <button class="control-btn" onclick="speedUp()">加速</button>
+        <div class="dir-row">
+            <button class="control-btn" onclick="moveLeft()">左</button>
+            <button class="control-btn" onclick="moveForward()">前</button>
+            <button class="control-btn" onclick="moveRight()">右</button>
+        </div>
+        <button class="control-btn" onclick="speedDown()">减速</button>
+    </div>
+
+    <!-- 引入微信JS-SDK（用于回传小程序） -->
+    <script src="https://res.wx.qq.com/open/js/jweixin-1.6.0.js"></script>
+    <script>
+        // ========== 游戏核心配置 ==========
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const statusText = document.getElementById('gameStatus');
+        
+        // 画布尺寸（固定，适配移动端）
+        canvas.width = 300;
+        canvas.height = 500;
+
+        // 游戏数据
+        let gameData = {
+            // 玩家小车
+            car: {
+                x: 130,    // X坐标（初始居中）
+                y: 400,    // Y坐标（初始底部）
+                width: 40, // 宽度
+                height: 60,// 高度
+                speed: 0   // 行驶速度
+            },
+            // 前车（障碍物）
+            otherCar: {
+                x: 130,    // X坐标（初始居中）
+                y: -60,    // Y坐标（初始画布外）
+                width: 40,
+                height: 60,
+                moveSpeed: 5 // 移动速度
+            },
+            // 游戏状态
+            isCrash: false, // 是否碰撞
+            gameLoop: null  // 游戏循环定时器
+        };
+
+        // ========== 初始化游戏 ==========
+        function initGame() {
+            // 重置游戏状态
+            gameData.isCrash = false;
+            gameData.car.speed = 0;
+            gameData.car.x = 130;
+            gameData.otherCar.y = -60;
+            statusText.textContent = "就绪：点击加速开始驾驶";
+            
+            // 启动游戏循环（每秒60帧）
+            gameData.gameLoop = requestAnimationFrame(gameLoop);
+        }
+
+        // ========== 游戏主循环（核心） ==========
+        function gameLoop() {
+            // 如果碰撞，停止循环
+            if (gameData.isCrash) return;
+
+            // 1. 清空画布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 2. 绘制道路
+            drawRoad();
+
+            // 3. 绘制玩家小车
+            drawCar(
+                gameData.car.x, 
+                gameData.car.y, 
+                gameData.car.width, 
+                gameData.car.height, 
+                "red"
+            );
+
+            // 4. 绘制前车
+            drawCar(
+                gameData.otherCar.x, 
+                gameData.otherCar.y, 
+                gameData.otherCar.width, 
+                gameData.otherCar.height, 
+                "blue"
+            );
+
+            // 5. 更新前车位置（自动移动）
+            updateOtherCar();
+
+            // 6. 碰撞检测
+            checkCrash();
+
+            // 7. 更新状态提示
+            updateStatus();
+
+            // 8. 继续循环
+            gameData.gameLoop = requestAnimationFrame(gameLoop);
+        }
+
+        // ========== 游戏绘制函数 ==========
+        // 绘制道路
+        function drawRoad() {
+            // 道路背景
+            ctx.fillStyle = "#555";
+            ctx.fillRect(50, 0, 200, canvas.height);
+            // 道路中心线
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(145, 0, 10, canvas.height);
+        }
+
+        // 绘制小车
+        function drawCar(x, y, width, height, color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(x, y, width, height);
+            // 绘制小车车窗（简单装饰）
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(x + 5, y + 10, width - 10, height - 25);
+        }
+
+        // ========== 游戏逻辑函数 ==========
+        // 更新前车位置
+        function updateOtherCar() {
+            // 前车移动速度随玩家速度增加（模拟真实路况）
+            gameData.otherCar.y += gameData.otherCar.moveSpeed + (gameData.car.speed / 10);
+            // 超出画布底部，重置到顶部
+            if (gameData.otherCar.y > canvas.height) {
+                gameData.otherCar.y = -60;
+                // 随机改变前车X坐标（增加游戏难度）
+                gameData.otherCar.x = 50 + Math.random() * 160;
+            }
+        }
+
+        // 碰撞检测（矩形碰撞算法）
+        function checkCrash() {
+            const car = gameData.car;
+            const otherCar = gameData.otherCar;
+
+            // 矩形碰撞判断条件
+            if (
+                car.x < otherCar.x + otherCar.width &&
+                car.x + car.width > otherCar.x &&
+                car.y < otherCar.y + otherCar.height &&
+                car.y + car.height > otherCar.y
+            ) {
+                // 触发碰撞
+                gameData.isCrash = true;
+                // 停止游戏循环
+                cancelAnimationFrame(gameData.gameLoop);
+                // 触发事故，回传小程序
+                triggerAccident("追尾", "未保持安全车距，与前方车辆发生追尾碰撞");
+            }
+        }
+
+        // 更新状态提示
+        function updateStatus() {
+            if (gameData.car.speed === 0) {
+                statusText.textContent = "就绪：点击加速开始驾驶";
+            } else {
+                statusText.textContent = `行驶中：速度 ${gameData.car.speed} km/h`;
+            }
+        }
+
+        // ========== 玩家操控函数 ==========
+        // 加速
+        function speedUp() {
+            if (gameData.isCrash) return;
+            gameData.car.speed = Math.min(gameData.car.speed + 10, 80); // 限速80km/h
+        }
+
+        // 减速
+        function speedDown() {
+            if (gameData.isCrash) return;
+            gameData.car.speed = Math.max(gameData.car.speed - 10, 0);
+        }
+
+        // 向左移动
+        function moveLeft() {
+            if (gameData.isCrash || gameData.car.speed === 0) return;
+            // 限制左边界（道路内）
+            if (gameData.car.x > 50) {
+                gameData.car.x -= 15;
+            }
+        }
+
+        // 向右移动
+        function moveRight() {
+            if (gameData.isCrash || gameData.car.speed === 0) return;
+            // 限制右边界（道路内）
+            if (gameData.car.x < 210) {
+                gameData.car.x += 15;
+            }
+        }
+
+        // 向前移动（加速后生效）
+        function moveForward() {
+            if (gameData.isCrash || gameData.car.speed === 0) return;
+            // 向前移动距离随速度增加
+            gameData.car.y -= 10 * (gameData.car.speed / 20);
+            // 限制上边界
+            if (gameData.car.y < 10) {
+                gameData.car.y = 10;
+            }
+        }
+
+        // ========== 事故触发+回传小程序 ==========
+        function triggerAccident(type, desc) {
+            // 1. 游戏内提示事故
+            statusText.textContent = `事故：${type}！`;
+            alert(`⚠️ 发生${type}事故！\n原因：${desc}`);
+
+            // 2. 回传事故信息到微信小程序（核心）
+            if (typeof wx !== "undefined") {
+                wx.miniProgram.postMessage({
+                    data: {
+                        accidentType: type,
+                        accidentDesc: desc,
+                        timestamp: new Date().getTime()
+                    }
+                });
+                // 3. 跳回小程序
+                wx.miniProgram.navigateBack({
+                    delta: 1
+                });
+            } else {
+                // 非小程序环境提示
+                alert("事故信息：" + JSON.stringify({type, desc}));
+            }
+        }
+
+        // ========== 启动游戏 ==========
+        window.onload = initGame;
+    </script>
+</body>
+</html>
