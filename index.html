@@ -165,7 +165,7 @@
     <div class="crash-tip" id="crashTip">
         <div class="crash-tip-title" id="crashTipTitle"></div>
         <div class="crash-tip-desc" id="crashTipDesc"></div>
-        <div class="crash-tip-hint">AI正在定责，请稍候...</div>
+        <div class="crash-tip-hint">正在跳转定责结果...</div>
     </div>
 
     <!-- Three.js 核心库 -->
@@ -535,14 +535,14 @@
             }
         }
 
-        // 🔥 核心修复：移除alert，改用静默发送+UI提示
+        // 🔥 终极修复：直接调用小程序跳转，抛弃postMessage
         function triggerCrash() {
             document.getElementById('statusDisplay').textContent = `事故：${gameState.crashType}`;
             
             // 震动反馈
             if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
 
-            // 显示事故提示层（替代alert）
+            // 显示事故提示层
             const crashTip = document.getElementById('crashTip');
             const crashTipTitle = document.getElementById('crashTipTitle');
             const crashTipDesc = document.getElementById('crashTipDesc');
@@ -550,21 +550,31 @@
             crashTipDesc.textContent = gameState.crashDesc;
             crashTip.classList.add('show');
 
-            // 立即发送消息（不延迟、不阻塞）
-            console.log("【H5】发送事故消息给小程序：", {
+            console.log("【H5】触发事故，准备跳转小程序结果页：", {
                 accidentType: gameState.crashType,
                 accidentDesc: gameState.crashDesc
             });
 
+            // 🔥 核心：直接调用小程序的navigateTo，传参并跳转
             if (typeof wx !== "undefined") {
-                // 🔥 关键：直接发送，不套setTimeout，不阻塞
-                wx.miniProgram.postMessage({
-                    data: [{
-                        accidentType: gameState.crashType,
-                        accidentDesc: gameState.crashDesc
-                    }]
+                // 编码参数，避免特殊字符问题
+                const type = encodeURIComponent(gameState.crashType);
+                const desc = encodeURIComponent(gameState.crashDesc);
+                
+                // 调用小程序跳转接口
+                wx.miniProgram.navigateTo({
+                    url: `/pages/result/result?accidentType=${type}&accidentDesc=${desc}`,
+                    success: () => {
+                        console.log("✅ 跳转小程序结果页成功");
+                    },
+                    fail: (err) => {
+                        console.error("❌ 跳转失败：", err);
+                        // 兜底：提示用户手动返回
+                        crashTip.querySelector('.crash-tip-hint').textContent = "跳转失败，请手动返回";
+                    }
                 });
-                console.log("【H5】消息已发送，小程序将触发AI定责");
+            } else {
+                console.log("【H5】不在小程序环境，跳过跳转");
             }
         }
 
